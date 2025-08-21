@@ -42,11 +42,11 @@ export default class ProductImageController extends Base {
 
       const query =
         "INSERT INTO product_img (product_id, image_url, thumb) VALUES ?";
-      await this.db.query(query, [values]);
+      await this.insert(query, [values]);
 
       const updateQuery =
         "UPDATE products SET status = 1, updated_at = NOW() WHERE id = ?";
-      await this.db.query(updateQuery, [product_id]);
+      await this.update(updateQuery, [product_id]);
 
       this.s = 1;
       this.m = "Images uploaded & product published successfully.";

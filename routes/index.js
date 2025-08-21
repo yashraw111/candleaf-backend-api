@@ -5,6 +5,7 @@ import User from "./user.js";
 import Product from "./product.js";
 import ProductImg from "./productImage.js";
 import cart from "./cart.js";
+import testimonials from "./testimonials.js";
 
 const router = Router();
 // without middleware routes
@@ -15,6 +16,7 @@ router.use("/user", User);
 router.use("/product",Product);
 router.use("/product/image",ProductImg);
 router.use("/cart",cart)
+router.use("/testimonials",testimonials)
 // router.use("/user", User);
 
 export default router;
