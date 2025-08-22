@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import cloudinary from "../config/cloudinary.js";
 import { v4 as uuidv4 } from "uuid";
+import PDFDocument from 'pdfkit'; // <-- ADD THIS IMPORT
 
 class Base {
   constructor() {
@@ -121,8 +122,133 @@ class Base {
     return crypto.randomBytes(16).toString("hex");
   }
 
-  // Ensure random password matches regex:
-  // At least 1 uppercase, 1 lowercase, 1 digit, 1 special character, and 8+ characters
+  async buildInvoicePDF(order, user) {
+  return new Promise((resolve) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const buffers = [];
+
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => {
+      const pdfData = Buffer.concat(buffers);
+      resolve(pdfData);
+    });
+    doc
+      .fillColor("#333333")
+      .fontSize(26)
+      .text(" Candleaf", 50, 50, { align: "left", bold: true })
+      .fontSize(12)
+      .fillColor("#666666")
+      .text("Official Invoice", { align: "left" });
+
+    // Right corner invoice meta
+    doc
+      .fontSize(10)
+      .fillColor("#000000")
+      .text(`Invoice ID: #${order.id}`, 400, 60, { align: "right" })
+      .text(
+        `Order Date: ${new Date(order.created_at || Date.now()).toLocaleDateString()}`,
+        400,
+        75,
+        { align: "right" }
+      );
+
+    doc.moveDown(2);
+
+    // === Customer Info ===
+    doc
+      .fontSize(14)
+      .fillColor("#222222")
+      .text("Billing Information", 50, 140, { underline: true });
+
+    doc
+      .fontSize(12)
+      .fillColor("#000000")
+      .text(user.username || "Guest User", 50, 160)
+      .text(order.shipping_address || "No address provided", 50, 175);
+
+    doc.moveDown(2);
+
+    // === Table Headers ===
+    const tableTop = 220;
+    doc
+      .fontSize(12)
+      .fillColor("#444444")
+      .text("Product", 50, tableTop)
+      .text("Quantity", 260, tableTop, { width: 90, align: "right" })
+      .text("Price", 360, tableTop, { width: 90, align: "right" })
+      .text("Total", 460, tableTop, { width: 90, align: "right" });
+    // Header line
+    doc
+      .moveTo(50, tableTop + 15)
+      .lineTo(550, tableTop + 15)
+      .strokeColor("#aaaaaa")
+      .stroke();
+
+    // === Table Rows ===
+    let position = tableTop + 30;
+    order.items.forEach((item, i) => {
+      const itemPrice = item.pr_price || item.price || 0;
+      const total = itemPrice * item.quantity;
+
+      doc
+        .fontSize(10)
+        .fillColor("#000000")
+        .text(`${i + 1}. ${item.pr_name}`, 50, position)
+        .text(item.quantity, 260, position, { width: 90, align: "right" })
+        .text(`$${itemPrice.toFixed(2)}`, 360, position, { width: 90, align: "right" })
+        .text(`$${total.toFixed(2)}`, 460, position, { width: 90, align: "right" });
+
+      position += 25;
+      doc
+        .moveTo(50, position - 5)
+        .lineTo(550, position - 5)
+        .strokeColor("#f0f0f0")
+        .stroke();
+    });
+    position += 20;
+    doc
+      .fontSize(14)
+      .fillColor("#000000")
+      .text(`Grand Total: $${order.total_amount.toFixed(2)}`, 460, position, {
+        width: 90,
+        align: "right",
+      });
+    doc.moveDown(6);
+    doc
+      .fontSize(10)
+      .fillColor("#666666")
+      .text("Thank you for shopping with Candleaf 🕯️", { align: "center" })
+      .moveDown()
+      .fontSize(8)
+      .text("This is a system-generated invoice. No signature required.", {
+        align: "center",
+      });
+
+    doc.end();
+  });
+}
+// generate a salted hash
+async generateHash(data) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString("hex");
+    crypto.scrypt(data, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(salt + ":" + derivedKey.toString("hex")); // store salt + hash
+    });
+  });
+}
+
+// compare input with stored hash
+async compareHash(data, storedHash) {
+  return new Promise((resolve, reject) => {
+    const [salt, key] = storedHash.split(":");
+    crypto.scrypt(data, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(key === derivedKey.toString("hex"));
+    });
+  });
+}
+
   generate_strong_password(length = 8) {
     const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const lower = "abcdefghijklmnopqrstuvwxyz";

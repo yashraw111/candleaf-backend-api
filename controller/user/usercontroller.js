@@ -114,4 +114,37 @@ export default class UserController extends Base {
       return this.send_res(res);
     }
   }
+
+  async changePass(req, res, next) {
+    try {
+      const user_id = req.user_id;
+
+      const { old_pass, new_pass } = req.body;
+      if (this.varify_req(req, ["old_pass", "new_pass"])) {
+        return this.send_res(res);
+      }
+
+      const user = await this.selectOne("SELECT * FROM user where id = ?", [
+        user_id,
+      ]);
+
+      const checkPass = await this.check_password(user?.password, old_pass);
+      if (!checkPass) {
+        this.s = 0;
+        this.m = "incorrect old password";
+        return this.send_res(res);
+      }
+      const hashPass = await this.generate_password(new_pass);
+      await this.update("UPDATE user set password = ? where id = ?", [
+        hashPass,
+        user_id,
+      ]);
+      this.s = 1;
+      this.m = "password updated ";
+      return this.send_res(res);
+    } catch (error) {
+      this.err = error.message;
+      return this.send_res(res);
+    }
+  }
 }

@@ -116,4 +116,112 @@ export default class AuthController extends Base {
       this.err = error.message;
     }
   }
+
+ async forgotPass(req, res, next) {
+  try {
+    if (this.varify_req(req, ["email"])) {
+      return this.send_res(res);
+    }
+    const { email } = req.body;
+
+    // check user exist
+    const user = await this.selectOne("SELECT * FROM user WHERE email = ?", [email]);
+    if (!user) {
+      this.s = 0;
+      this.m = "Email not registered!";
+      return this.send_res(res);
+    }
+
+    // generate OTP
+    const secret = process.env.OTP_SECRET || "mySecretKey";
+    const otp = Math.floor(100000 + Math.random() * 900000); // 6-digit
+    const expiryTimestamp = Date.now() + 5 * 60 * 1000; // 5 min
+
+    const rawData = `${email}${otp}${secret}${expiryTimestamp}`;
+    const hash = await this.generateHash(rawData);
+
+    // send email
+    const mailService = new MailService();
+    await mailService.sendMail({
+      to: email,
+      subject: "Password Reset OTP - Candleaf",
+      templateName: "forgot-passmail",
+      data: { email, otp },
+    });
+
+    this.s = 1;
+    this.m = "OTP sent to your email";
+    this.r = {
+      hash,
+      expiryTimestamp,
+    };
+    return this.send_res(res);
+  } catch (error) {
+    this.err = error.message;
+    return this.send_res(res);
+  }
+}
+
+async resetPass(req, res, next) {
+  try {
+    if (this.varify_req(req, ["otp", "hash", "expiryTimestamp", "newPassword", "email"])) {
+      return this.send_res(res);
+    }
+
+    let { otp, hash, expiryTimestamp, newPassword, email } = req.body;
+    const secret = process.env.OTP_SECRET || "mySecretKey";
+
+    // check expiry
+    if (Date.now() > Number(expiryTimestamp)) {
+      this.s = 0;
+      this.m = "OTP expired!";
+      return this.send_res(res);
+    }
+
+    // verify hash
+    const rawData = `${email}${otp}${secret}${expiryTimestamp}`;
+    const isValid = await this.compareHash(rawData, hash);
+
+    if (!isValid) {
+      this.s = 0;
+      this.m = "Invalid OTP!";
+      return this.send_res(res);
+    }
+
+    // update new password
+    const user = await this.selectOne("SELECT * FROM user WHERE email = ?", [email]);
+    if (!user) {
+      this.s = 0;
+      this.m = "User not found!";
+      return this.send_res(res);
+    }
+
+    const hash_password = this.generate_password(newPassword);
+    await this.update("UPDATE user SET password = ? WHERE id = ?", [hash_password, user.id]);
+
+    // ✅ Expire token immediately after success
+    expiryTimestamp = 0;
+
+    // send mail
+    const mailService = new MailService();
+    await mailService.sendMail({
+      to: email,
+      subject: "Password Reset Successful - Candleaf",
+      templateName: "reset-passmail",
+      data: { email }
+    });
+
+    this.s = 1;
+    this.m = "Password reset successfully!";
+    this.d = { expiryTimestamp }; // client ko 0 bhej do
+    return this.send_res(res);
+  } catch (error) {
+    this.err = error.message;
+    return this.send_res(res);
+  }
+}
+
+
+
+
 }

@@ -9,7 +9,7 @@ const __dirname = path.resolve();
 export default class MailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
-      service: CONFIG.SMTP_HOST,
+      service: CONFIG.SMTP_HOST, // e.g. "gmail"
       port: CONFIG.SMTP_PORT,
       secure: CONFIG.SMTP_SECURE, // true for 465, false for other ports
       auth: {
@@ -17,14 +17,11 @@ export default class MailService {
         pass: CONFIG.SMTP_PASS,
       },
     });
-
-
-
   }
 
-
-  async sendMail({ to, subject, templateName, data }) {
+  async sendMail({ to, subject, templateName, data, attachments = [] }) {
     try {
+      // Render EJS template
       const templatePath = path.join(
         __dirname,
         "views",
@@ -39,6 +36,7 @@ export default class MailService {
         to,
         subject,
         html,
+        attachments, // ✅ ab attachments support karega
       };
 
       await this.transporter.sendMail(mailOptions);

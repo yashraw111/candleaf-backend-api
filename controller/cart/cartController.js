@@ -1,3 +1,4 @@
+import { CONFIG } from "../../config/flavour.js";
 import { Base } from "../../service/base.js";
 
 export default class CartController extends Base {
@@ -6,68 +7,73 @@ export default class CartController extends Base {
   }
 
   //? add to cart
-  async addToCart(req, res, next) {
-    try {
-      const { product_id, quantity, user_id } = req.body;
-      if (this.varify_req(req, ["product_id", "quantity", "user_id"])) {
-        return this.send_res(res);
-      }
+async addToCart(req, res, next) {
+  try {
+    const { product_id, quantity } = req.body;
+    const user_id = req.user_id; // 👈 ab middleware se aayega
 
-      const existing = await this.selectOne(
-        "SELECT * FROM cart where product_id = ? AND user_id = ?",
-        [product_id, user_id]
-      );
-
-      if (existing) {
-        await this.update(
-          "UPDATE cart SET quantity = quantity + ? WHERE id = ?",
-          [quantity, existing.id]
-        );
-      } else {
-        await this.insert(
-          "INSERT INTO cart (user_id, product_id, quantity) VALUES (?,?,?)",
-          [user_id, product_id, quantity]
-        );
-      }
-      this.s = 1;
-      this.m = "Product added to cart successfully.";
-      return this.send_res(res);
-    } catch (error) {
-      this.err = error.message;
+    if (this.varify_req(req, ["product_id", "quantity"])) {
       return this.send_res(res);
     }
+
+    const existing = await this.selectOne(
+      "SELECT * FROM cart where product_id = ? AND user_id = ?",
+      [product_id, user_id]
+    );
+
+    if (existing) {
+      await this.update(
+        "UPDATE cart SET quantity = quantity + ? WHERE id = ?",
+        [quantity, existing.id]
+      );
+    } else {
+      await this.insert(
+        "INSERT INTO cart (user_id, product_id, quantity) VALUES (?,?,?)",
+        [user_id, product_id, quantity]
+      );
+    }
+
+    this.s = 1;
+    this.m = "Product added to cart successfully.";
+    return this.send_res(res);
+  } catch (error) {
+    this.err = error.message;
+    return this.send_res(res);
   }
+}
 
   //? get all cart with product
-  async getCart(req, res) {
-    try {
-      const { user_id } = req.body;
+async getCart(req, res) {
+  try {
+    const user_id = req.user_id; // 👈 ab yaha se le rahe hai
 
-      const items = await this.select(`SELECT * from cart where user_id = ?`, [
-        user_id,
-      ]);
+    const items = await this.select(`SELECT * from cart where user_id = ?`, [
+      user_id,
+    ]);
 
-      const product = await this.select("select * from products where id = ?", [
-        items[0].product_id,
-      ]);
-
-      for (let i = 0; i < items.length; i++) {
-        const images = await this.select(
-          `SELECT * FROM product_img WHERE product_id = ?`,
-          [items[i].id]
-        );
-        items[i].cartProduct = product;
-      }
-
-      this.s = 1;
-      this.m = "Cart fetched successfully";
-      this.r = items;
-      return this.send_res(res);
-    } catch (err) {
-      this.err = err.message;
-      return this.send_res(res);
+    for (let i = 0; i < items.length; i++) {
+      const product = await this.selectOne(
+        "select * from products where id = ?",
+        [items[i].product_id]
+      );
+      const images = await this.select(
+        "SELECT * FROM product_img WHERE product_id = ?",
+        [items[i].product_id]
+      );
+      items[i].cartProduct = product;
+      items[i].images = images;
     }
+
+    this.s = 1;
+    this.m = "Cart fetched successfully";
+    this.r = items;
+    return this.send_res(res);
+  } catch (err) {
+    this.err = err.message;
+    return this.send_res(res);
   }
+}
+
 
   //? update cart
   async updateCart(req, res) {

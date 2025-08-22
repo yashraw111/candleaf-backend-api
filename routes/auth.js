@@ -11,4 +11,13 @@ router.route("/login").post((req, res, next) => {
   return c.login(req, res, next);
 });
 
+router.route("/forgot_pass").post((req,res,next)=>{
+  const c = new Auth()
+  return c.forgotPass(req,res,next)
+})
+
+router.route("/reset_pass").put((req,res,next)=>{
+  const c = new Auth()
+  return c.resetPass(req,res,next)
+})
 export default router;
